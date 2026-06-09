@@ -33,9 +33,17 @@ PROVIDER_DESCRIPTORS: dict[str, ProviderDescriptor] = PROVIDER_CATALOG
 
 
 def _create_nvidia_nim(config: ProviderConfig, settings: Settings) -> BaseProvider:
-    from providers.nvidia_nim import NvidiaNimProvider
+    from providers.nvidia_nim import NimKeyRotator, NvidiaNimProvider
 
-    return NvidiaNimProvider(config, nim_settings=settings.nim)
+    # Build a key rotator when multiple keys are configured (NVIDIA_NIM_API_KEYS),
+    # otherwise fall back to the single NVIDIA_NIM_API_KEY.
+    rotator: NimKeyRotator | None = None
+    if settings.nvidia_nim_api_keys.strip():
+        rotator = NimKeyRotator.from_env_string(settings.nvidia_nim_api_keys)
+    elif settings.nvidia_nim_api_key.strip():
+        rotator = NimKeyRotator.from_single_key(settings.nvidia_nim_api_key)
+
+    return NvidiaNimProvider(config, nim_settings=settings.nim, key_rotator=rotator)
 
 
 def _create_open_router(config: ProviderConfig, _settings: Settings) -> BaseProvider:
