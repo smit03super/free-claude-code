@@ -127,6 +127,19 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         description="Used by NVIDIA NIM chat and optional NIM voice transcription.",
     ),
     ConfigFieldSpec(
+        "NVIDIA_NIM_API_KEYS",
+        "NVIDIA NIM API Keys (rotation)",
+        "providers",
+        "textarea",
+        settings_attr="nvidia_nim_api_keys",
+        secret=True,
+        description=(
+            "Comma-separated list of NVIDIA NIM API keys for round-robin rotation. "
+            "Takes priority over the single API Key above when set. "
+            "Example: nvapi-key1, nvapi-key2, nvapi-key3"
+        ),
+    ),
+    ConfigFieldSpec(
         "OPENROUTER_API_KEY",
         "OpenRouter API Key",
         "providers",
@@ -1269,7 +1282,12 @@ def provider_config_status(
             continue
 
         value = str(state.get(descriptor.credential_env, {}).get("value", ""))
-        configured = bool(value.strip())
+        # For NVIDIA NIM, also treat as configured when the rotation keys are set
+        if descriptor.credential_env == "NVIDIA_NIM_API_KEY":
+            keys_value = str(state.get("NVIDIA_NIM_API_KEYS", {}).get("value", ""))
+            configured = bool(value.strip()) or bool(keys_value.strip())
+        else:
+            configured = bool(value.strip())
         statuses.append(
             {
                 "provider_id": provider_id,
