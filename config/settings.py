@@ -127,7 +127,11 @@ class Settings(BaseSettings):
     )
 
     # ==================== NVIDIA NIM Config ====================
-    nvidia_nim_api_key: str = ""
+    nvidia_nim_api_key: str = Field(default="", validation_alias="NVIDIA_NIM_API_KEY")
+    # Comma-separated list of keys for round-robin rotation.
+    # Takes priority over NVIDIA_NIM_API_KEY when set.
+    # Example: "nvapi-key1, nvapi-key2, nvapi-key3"
+    nvidia_nim_api_keys: str = Field(default="", validation_alias="NVIDIA_NIM_API_KEYS")
 
     # ==================== LM Studio Config ====================
     lm_studio_base_url: str = Field(
