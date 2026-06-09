@@ -11,6 +11,7 @@ from providers.base import ProviderConfig
 from providers.defaults import NVIDIA_NIM_DEFAULT_BASE
 from providers.openai_compat import OpenAIChatTransport
 
+from .key_rotator import NimKeyRotator
 from .request import (
     body_without_nim_tool_argument_aliases,
     build_request_body,
@@ -24,7 +25,13 @@ from .request import (
 class NvidiaNimProvider(OpenAIChatTransport):
     """NVIDIA NIM provider using official OpenAI client."""
 
-    def __init__(self, config: ProviderConfig, *, nim_settings: NimSettings):
+    def __init__(
+        self,
+        config: ProviderConfig,
+        *,
+        nim_settings: NimSettings,
+        key_rotator: NimKeyRotator | None = None,
+    ):
         super().__init__(
             config,
             provider_name="NIM",
@@ -32,6 +39,23 @@ class NvidiaNimProvider(OpenAIChatTransport):
             api_key=config.api_key,
         )
         self._nim_settings = nim_settings
+        self._key_rotator = key_rotator
+        if key_rotator is not None:
+            logger.info(
+                "NIM: key rotation enabled with {} key(s)", key_rotator.key_count
+            )
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _get_api_key(self) -> str:
+        """Return the next API key from the rotator, or the static key."""
+        if self._key_rotator is not None:
+            key = self._key_rotator.next_key()
+            logger.debug("NIM: rotating to next API key")
+            return key
+        return self._api_key  # type: ignore[attr-defined]
 
     def _build_request_body(
         self, request: Any, thinking_enabled: bool | None = None
@@ -50,6 +74,16 @@ class NvidiaNimProvider(OpenAIChatTransport):
     def _tool_argument_aliases(self, body: dict[str, Any]) -> dict[str, dict[str, str]]:
         """Return NIM tool argument aliases captured while building this request."""
         return nim_tool_argument_aliases_from_body(body)
+
+    def _get_openai_client(self, body: dict[str, Any]):  # type: ignore[override]
+        """Return an OpenAI client using the next rotated API key."""
+        import openai as _openai
+
+        api_key = self._get_api_key()
+        return _openai.AsyncOpenAI(
+            api_key=api_key,
+            base_url=self._base_url,  # type: ignore[attr-defined]
+        )
 
     def _get_retry_request_body(self, error: Exception, body: dict) -> dict | None:
         """Retry once with a downgraded body when NIM rejects a known field."""
