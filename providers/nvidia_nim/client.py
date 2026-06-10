@@ -53,7 +53,8 @@ class NvidiaNimProvider(OpenAIChatTransport):
         """Return the next API key from the rotator, or the static key."""
         if self._key_rotator is not None:
             key = self._key_rotator.next_key()
-            logger.debug("NIM: rotating to next API key")
+            masked = f"...{key[-4:]}" if len(key) >= 4 else "****"
+            logger.info("NIM: using key [{}] (pool size: {})", masked, self._key_rotator.key_count)
             return key
         return self._api_key  # type: ignore[attr-defined]
 
